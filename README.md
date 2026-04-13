@@ -4,7 +4,7 @@ Third-party libraries used in this project:
 - Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
 
 **To run this program, you will need:**
--Java 11+ JDK 
+-Java 11+ JDK and
 -Apache Maven
 
 From the terminal, run:
