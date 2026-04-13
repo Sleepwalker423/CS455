@@ -3,6 +3,10 @@ Third-party libraries used in this project:
 - Openllet 2.6.5 (https://github.com/Galigator/openllet) — MIT License
 - Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
 
+**To run this program, you will need:**
+-Java 11+ JDK 
+-Apache Maven
+
 From the terminal, run:
 
 To compile: mvn compile
