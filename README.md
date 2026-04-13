@@ -1,3 +1,8 @@
+Third-party libraries used in this project:
+- OWL API 5.5.0 (https://owlapi.sourceforge.net/) — LGPL v3
+- Openllet 2.6.5 (https://github.com/Galigator/openllet) — MIT License
+- Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
+
 From the terminal, run:
 
 To compile: mvn compile
