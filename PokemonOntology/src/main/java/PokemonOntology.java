@@ -5,8 +5,13 @@
  *
  * Compile: mvn compile
  * Run:     mvn exec:java
- * 
- * Code optimized using Claude Sonnet 4.6 with review of the author. 
+ *
+ * Code optimized using Claude Sonnet 4.6 with review of the author.
+ *
+ * Third-party libraries used in this project:
+ *   - OWL API 5.5.0 (https://owlapi.sourceforge.net/) — LGPL v3
+ *   - Openllet 2.6.5 (https://github.com/Galigator/openllet) — MIT License
+ *   - Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
  */
 
 import java.io.File;
@@ -50,7 +55,6 @@ public class PokemonOntology {
     OWLObjectProperty isImmuneTo;
     OWLObjectProperty isStrongAgainst;
     OWLObjectProperty isWeakTo;
-
     OWLClass pokemonSpecies;
     OWLClass pokemonType;
     OWLClass pokemonMove;
@@ -76,7 +80,6 @@ public class PokemonOntology {
         isImmuneTo                  = objProp("isImmuneTo");
         isStrongAgainst             = objProp("isStrongAgainst");
         isWeakTo                    = objProp("isWeakTo");
-
         // Pre-build frequently used OWL classes and data property.
         pokemonSpecies      = cls(NS_POKEMON,  "PokemonSpecies");
         pokemonType         = cls(NS_POKEMON,  "PokemonType");
@@ -190,12 +193,6 @@ public class PokemonOntology {
         printAllOfClass(pokemonMove);
     }
 
-    /** Prints all trainer individuals in the ontology. */
-    public void listAllTrainers() {
-        System.out.println("=== Trainers ===");
-        printAllOfClass(pokemonTrainer);
-    }
-
     /** Prints all Pokemon species individuals in the ontology. */
     public void listAllPokemon() {
         System.out.println("=== Pokemon ===");
@@ -223,19 +220,6 @@ public class PokemonOntology {
     }
 
     /**
-     * Prints all OWL classes the reasoner infers the named Pokemon individual belongs to,
-     * excluding owl:Thing.
-     */
-    public void listTypesOf(String individualName) {
-        System.out.println("=== " + individualName + " Types ===");
-        reasoner.getTypes(ind(NS_POKEMON, individualName), false).getFlattened().stream()
-            .filter(c -> !c.isOWLThing())
-            .map(sfp::getShortForm).sorted()
-            .forEach(name -> System.out.println("  " + name));
-        System.out.println();
-    }
-
-    /**
      * Prints the Pokemon with the given Pokedex number along with its type
      * strengths and weaknesses. Searches all PokemonSpecies individuals for a
      * matching hasPokedexNumber data property value.
@@ -254,7 +238,11 @@ public class PokemonOntology {
      */
     public void listPokemonWithWeakness(String typeName) {
         System.out.println("=== Pokemon weak to " + typeName + " ===");
-        printIndented(streamInstances(factory.getOWLObjectIntersectionOf(
+
+        printIndented(
+            //Find Pokemon with the condition "hasType" "isWeakTo" the given type "typeName".
+            streamInstances(factory.getOWLObjectIntersectionOf(
+            //Contains all Pokemon species.
             pokemonSpecies,
             factory.getOWLObjectSomeValuesFrom(hasType,
                 factory.getOWLObjectSomeValuesFrom(isWeakTo,
@@ -354,20 +342,6 @@ public class PokemonOntology {
         System.out.println();
     }
 
-    /**
-     * Prints all Pokemon that can learn moves of the given type.
-     * Finds moves of that type first, then finds Pokemon that can learn any of them.
-     */
-    public void listPokemonByMoveType(String typeName) {
-        System.out.println("=== Pokemon that can learn " + typeName + " moves ===");
-        printIndented(streamInstances(factory.getOWLObjectIntersectionOf(
-            pokemonSpecies,
-            factory.getOWLObjectSomeValuesFrom(canLearnMove,
-                factory.getOWLObjectSomeValuesFrom(hasMoveType,
-                    factory.getOWLObjectOneOf(ind(NS_POKEMON, typeName)))))));
-        System.out.println();
-    }
-
     /** Prints all moves that the named Pokemon can learn. */
     public void listMovesByPokemon(String pokemonName) {
         System.out.println("=== Moves " + pokemonName + " can learn ===");
@@ -406,41 +380,80 @@ public class PokemonOntology {
 
     /**
      * Suggests Pokemon to use against the named trainer's team.
-     * Step 1: collect every type used by the trainer's Pokemon.
-     * Step 2: find types that are strong/weak against the trainer's types.
-     * Step 3: list all Pokemon that are strong/weak against that trainer.
+     * For each of the trainer's Pokemon, lists which player Pokemon are effective against it,
+     * then lists all Pokemon to avoid across the whole team.
      */
     public void listPokemonSuggestionsForTrainer(String trainerName) {
-        //Get all types used by the trainer.
         OWLNamedIndividual trainer = ind(NS_ONTOLOGY, trainerName);
+        Set<OWLNamedIndividual> trainerPokemon = getValues(trainer, hasPokemon);
 
-        //Uses a Set to avoid duplicate data types when determining types used by trainer.
-        Set<OWLNamedIndividual> trainerTypes = getValues(trainer, hasPokemon).stream()
-            .flatMap(pokemon -> getValues(pokemon, hasType).stream())
-            .collect(Collectors.toSet());
-        
-        //Find all types that are strong against any of the trainer's types.
-        Set<OWLNamedIndividual> effectiveTypes = trainerTypes.stream()
-            .flatMap(type -> getValues(type, isWeakTo).stream())
-            .collect(Collectors.toSet());
-        
-            //Find all types that are weak against any of the trainer's types.
-        Set<OWLNamedIndividual> uneffectiveTypes = trainerTypes.stream()
-            .flatMap(type -> getValues(type, isStrongAgainst).stream())
-            .collect(Collectors.toSet());
-
-        //Print suggested Pokemon to use and avoid against the trainer.
         System.out.println("=== Suggested Pokemon against " + trainerName + " ===");
-        
-        printIndented(streamInstances(pokemonSpecies)
-            .filter(pokemon -> getValues(pokemon, hasType).stream().anyMatch(effectiveTypes::contains)));
-        
-        System.out.println();
 
-        System.out.println("=== Pokemon to avoid against " + trainerName + " ===");
+        //Sort the trainer's Pokemon alphabetically.
+        trainerPokemon.stream().sorted(Comparator.comparing(sfp::getShortForm))
+
+            //Loops through each pokemon on the trainer's team.
+            .forEach(enemyPokemon -> {
+                // Get the enemy Pokemon's types.
+                Set<OWLNamedIndividual> enemyTypes = getValues(enemyPokemon, hasType);
+
+                // Get the current enemy Pokemon's type/s for header
+                String typeStr = enemyTypes.stream()
+                    .map(sfp::getShortForm).sorted()
+                    .collect(Collectors.joining("/"));
+
+                //Find all types that are strong against the enemy pokemon's type/s. 
+                Set<OWLNamedIndividual> effectiveTypes = enemyTypes.stream()
+                    .flatMap(type -> getValues(type, isWeakTo).stream())
+                    .collect(Collectors.toSet());
+
+                //Find Pokemon that have any of the types listed in the effectiveTypes set.
+                String suggestions = streamInstances(pokemonSpecies)
+                    .filter(ps -> getValues(ps, hasType).stream().anyMatch(effectiveTypes::contains))
+                    .map(sfp::getShortForm).sorted()
+                    .collect(Collectors.joining(", "));
+
+                //Print the header for the current enemy Pokemon. 
+                System.out.println("  vs. " + sfp.getShortForm(enemyPokemon) + " (" + typeStr + "):");
+                //Print the suggested Pokemon to use against the current enemy Pokemon.
+                System.out.println("    " + suggestions);
+
+            });
         
-        printIndented(streamInstances(pokemonSpecies)
-            .filter(pokemon -> getValues(pokemon, hasType).stream().anyMatch(uneffectiveTypes::contains)));
+        System.out.println("=== Pokemon to avoid against " + trainerName + " ===");
+
+        //Sort the trainer's Pokemon alphabetically.
+        trainerPokemon.stream().sorted(Comparator.comparing(sfp::getShortForm))
+
+            // Loops through each pokemon on the trainer's team.
+            .forEach(enemyPokemon -> {
+
+                // Get the enemy Pokemon's types.
+                Set<OWLNamedIndividual> enemyTypes = getValues(enemyPokemon, hasType);
+
+                // Get the current enemy Pokemon's type/s for header
+                String typeStr = enemyTypes.stream()
+                    .map(sfp::getShortForm).sorted()
+                    .collect(Collectors.joining("/"));
+
+                //Find all types that are weak against the enemy pokemon's type/s.
+                Set<OWLNamedIndividual> uneffectiveTypes = enemyTypes.stream()
+                    .flatMap(type -> getValues(type, isStrongAgainst).stream())
+                    .collect(Collectors.toSet());
+                
+                //Find Pokemon that have any of the types listed in the uneffectiveTypes set.
+                String toAvoid = streamInstances(pokemonSpecies)
+                    .filter(ps -> getValues(ps, hasType).stream().anyMatch(uneffectiveTypes::contains))
+                    .map(sfp::getShortForm).sorted()
+                    .collect(Collectors.joining(", "));
+
+                //Print the header for the current enemy Pokemon.
+                System.out.println("  vs. " + sfp.getShortForm(enemyPokemon) + " (" + typeStr + "):");
+                System.out.println("    " + toAvoid);
+            }
+        );
+            
+
     }
 
 //-------------------------------------------------------------------------------------------
@@ -462,16 +475,4 @@ public class PokemonOntology {
         System.out.println();
     }
 
-    /**
-     * Prints the type of the given move (inverse of listMovesByType).
-     * Move lives in the Ontology namespace.
-     */
-    public void listTypeByMove(String moveName) {
-
-        System.out.println("=== Type of move " + moveName + " ===");
-        OWLNamedIndividual targetMove = ind(NS_ONTOLOGY, moveName);
-
-        printObjectProperty(targetMove, hasMoveType, "Type");
-        System.out.println();
-    }
 }

@@ -9,7 +9,10 @@
  * Compile: mvn compile
  * Run:     mvn exec:java
  *
- * Code optimized using Claude Sonnet 4.6 with review of the author.
+ * Third-party libraries used in this project:
+ *   - OWL API 5.5.0 (https://owlapi.sourceforge.net/) — LGPL v3
+ *   - Openllet 2.6.5 (https://github.com/Galigator/openllet) — MIT License
+ *   - Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
  */
 import java.util.ArrayList;
 import java.util.List;
@@ -197,7 +200,8 @@ public class Menu {
                 case 1:
                     printSelectTrainerMenu();
                     int trainerChoice1 = input.intPrompt(0, trainers.size(), "Please enter the number of the trainer");
-                    if (trainerChoice1 == 0) break;
+                    if (trainerChoice1 == 0) 
+                        break;
                     pokeOntology.listTrainerInfo(trainers.get(trainerChoice1 - 1));
                     break;
                 case 2:
@@ -207,7 +211,8 @@ public class Menu {
                 case 3:
                     printSelectTrainerMenu();
                     int trainerChoice3 = input.intPrompt(0, trainers.size(), "Please enter the number of the trainer");
-                    if (trainerChoice3 == 0) break;
+                    if (trainerChoice3 == 0) 
+                        break;
                     pokeOntology.listPokemonSuggestionsForTrainer(trainers.get(trainerChoice3 - 1));
                     break;
                 case 0:

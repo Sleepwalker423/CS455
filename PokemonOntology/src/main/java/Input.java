@@ -10,6 +10,11 @@
  * Run:     mvn exec:java
  *
  * Code optimized using Claude Sonnet 4.6 with review of the author.
+ *
+ * Third-party libraries used in this project:
+ *   - OWL API 5.5.0 (https://owlapi.sourceforge.net/) — LGPL v3
+ *   - Openllet 2.6.5 (https://github.com/Galigator/openllet) — MIT License
+ *   - Logback 1.2.13 (https://logback.qos.ch/) — EPL v1.0 / LGPL 2.1
  */
 import java.util.InputMismatchException;
 import java.util.NoSuchElementException;
@@ -33,11 +38,8 @@ public class Input {
                 }
                 System.out.println("Input out of range. Please enter a value between " + min + " and " + max + ".");
             } catch (InputMismatchException e) {
-                System.out.println("Invalid input. Please enter a single integer.");
+                System.out.println("Invalid input. Please enter a single positive integer.");
                 scan.nextLine(); // clear the invalid token
-            } catch (IllegalStateException e) {
-                System.out.println("Scanner is closed.");
-                return -1; // or some other sentinel value indicating failure
             }
         }
     }
